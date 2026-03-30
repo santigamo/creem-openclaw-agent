@@ -58,15 +58,16 @@ ls ~/.openclaw/workspace/
 
 ## Phase 3: Install Skills
 
-### 3.1 Install Creem CLI skill
+### 3.1 Install Creem CLI skill (you do this interactively)
 ```bash
 npx skills add santigamo/creem-cli-developer-toolkit
 ```
 
-### 3.2 Install Creem Store Agent skill
-TODO: clawhub publish or copy manually:
-```bash
+### 3.2 Install Creem Store Agent skill (tell the agent)
+```
+Copy the creem-store-agent skill into your workspace:
 cp -r /Users/santi/Code/creem-openclaw-agent/skills/creem-store-agent ~/.openclaw/workspace/skills/
+Then verify it's loaded: list your available skills.
 ```
 
 ### 3.3 Verify Creem CLI is authenticated
