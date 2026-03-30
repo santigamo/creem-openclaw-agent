@@ -25,19 +25,26 @@ An AI-powered OpenClaw skill that acts as a full-time store operations worker fo
 - Creem API key (test mode recommended to start)
 - Telegram bot token (via [@BotFather](https://t.me/botfather))
 
-### Install the skill
+### 1. Install the skills
 
 ```bash
-# Clone the repo
-git clone https://github.com/santigamo/creem-openclaw-agent.git
+# Install the Creem store agent skill
+clawhub install creem-store-agent
 
-# Copy skill files to your OpenClaw workspace
-cp SKILL.md ~/.openclaw/workspace/
-cp HEARTBEAT.md ~/.openclaw/workspace/
-cp -r skills/ ~/.openclaw/workspace/skills/
+# Install the Creem CLI skill
+npx skills add santigamo/creem-cli-developer-toolkit
 ```
 
-### Configure
+### 2. Set up the workspace
+
+Copy the workspace files to your OpenClaw workspace:
+
+```bash
+cp AGENTS.md ~/.openclaw/workspace/
+cp HEARTBEAT.md ~/.openclaw/workspace/
+```
+
+### 3. Configure
 
 Set the following environment variables:
 
@@ -47,23 +54,29 @@ export TELEGRAM_BOT_TOKEN=your_bot_token
 export TELEGRAM_CHAT_ID=your_chat_id
 ```
 
-### Run
+### 4. Run
 
 Start OpenClaw — the agent will begin monitoring your store automatically via the heartbeat pattern.
 
 ## Project Structure
 
 ```
-├── SKILL.md              # Main agent skill — capabilities and instructions
-├── HEARTBEAT.md          # Periodic store health check pattern
+├── AGENTS.md                 # Agent behavior instructions (copy to workspace)
+├── HEARTBEAT.md              # Periodic store health check (copy to workspace)
 ├── skills/
-│   └── creem-cli/        # Creem CLI skill (terminal-native store operations)
+│   └── creem-store-agent/
+│       └── SKILL.md          # Publishable skill for ClawHub
 ├── docs/
-│   ├── guide.md          # Written guide (bounty deliverable)
-│   └── architecture.png  # Architecture diagram
+│   ├── guide.md              # Written guide
+│   └── architecture.png      # Architecture diagram
 └── examples/
-    └── webhook-events/   # Sample webhook payloads for testing
+    └── webhook-events/       # Sample webhook payloads for testing
 ```
+
+### Dependencies (installed separately)
+
+- **creem-cli skill** — `npx skills add santigamo/creem-cli-developer-toolkit`
+- **creem CLI** — Terminal-native Creem operations
 
 ## How It Works
 
