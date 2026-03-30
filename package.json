@@ -4,9 +4,15 @@
   "type": "module",
   "packageManager": "pnpm@10.30.0",
   "scripts": {
-    "webhook": "bun run webhook-receiver.ts"
+    "webhook": "bun run webhook-receiver.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "hono": "^4.12.9"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.11",
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2"
   }
 }

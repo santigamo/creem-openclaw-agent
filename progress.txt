@@ -1,9 +1,10 @@
 ## Codebase Patterns
+- Keep `!.env.example` in `.gitignore` when example env files are part of the deliverable, because the repo already ignores `.env.*`.
 
 ## [2026-03-30 22:00] - Webhook receiver bridge
 - Added a root-level Bun + Hono webhook receiver that verifies Creem signatures, deduplicates by `event_id`, appends normalized events to `events.jsonl`, and wakes the local OpenClaw hook asynchronously.
-- Created `.env.example` and bootstrapped `package.json` with a `webhook` script.
-- Files changed: `webhook-receiver.ts`, `.env.example`, `package.json`, `.gitignore`, `progress.txt`
+- Created `.env.example`, bootstrapped `package.json`, and added a minimal `tsconfig.json` so the bridge can be typechecked locally.
+- Files changed: `webhook-receiver.ts`, `.env.example`, `package.json`, `tsconfig.json`, `.gitignore`, `progress.txt`
 - **Learnings for future iterations:**
   - This repo is intentionally lightweight; small operational bridges can live as single-file Bun entrypoints at the repo root.
   - Runtime state for this bridge is append-only `events.jsonl`, and dedupe state should be rebuilt from that file on startup instead of introducing a separate store.
