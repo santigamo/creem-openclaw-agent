@@ -78,30 +78,85 @@ Expected: `"environment": "test"`, `"authenticated": true`
 
 ---
 
-## Phase 4: Telegram Bot Setup
+## Phase 4: Webhook Setup (Cloudflare Tunnel + OpenClaw Hooks)
 
-### 4.1 Create bot
+### 4.1 Install cloudflared
+```bash
+brew install cloudflared
+```
+
+### 4.2 Enable hooks in OpenClaw
+Edit `~/.openclaw/openclaw.json` and add:
+```json
+{
+  "hooks": {
+    "enabled": true,
+    "token": "your-secret-token-here"
+  }
+}
+```
+Then restart the gateway:
+```bash
+openclaw gateway restart
+```
+
+### 4.3 Create a stable Cloudflare Tunnel
+```bash
+cloudflared tunnel login
+cloudflared tunnel create creem-agent
+cloudflared tunnel route dns creem-agent creem-agent.yourdomain.com
+```
+
+### 4.4 Run the tunnel
+```bash
+cloudflared tunnel run --url http://localhost:18789 creem-agent
+```
+Or install as a service for persistence:
+```bash
+cloudflared service install
+```
+
+### 4.5 Register webhook in Creem
+In the Creem dashboard, set the webhook URL to:
+```
+https://creem-agent.yourdomain.com/hooks/wake
+```
+
+### 4.6 Test the webhook
+```bash
+curl -X POST https://creem-agent.yourdomain.com/hooks/wake \
+  -H "Authorization: Bearer your-secret-token-here" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Test webhook event: checkout.completed for customer test@example.com", "mode": "now"}'
+```
+The agent should wake up and process the event.
+
+---
+
+## Phase 5: Telegram Bot Setup
+
+### 5.1 Create bot
 1. Open Telegram → search @BotFather
 2. `/newbot`
 3. Name: `Creem Store Agent`
 4. Save the token
 
-### 4.2 Get your chat ID
+### 5.2 Get your chat ID
 1. Message the bot
 2. Visit: `https://api.telegram.org/bot<TOKEN>/getUpdates`
 3. Find `chat.id` in the response
 
-### 4.3 Set environment variables
+### 5.3 Set environment variables
 ```bash
-export TELEGRAM_BOT_TOKEN=your_token_here
+export TELEGRAM_BOT_TOKEN=***
 export TELEGRAM_CHAT_ID=your_chat_id_here
 ```
 
 ---
 
-## Phase 5: Test the Agent
+## Phase 6: Test the Agent
 
-### 5.1 Verify store access and first heartbeat
+### 6.1 Verify store access and first heartbeat
 Tell the agent:
 ```
 Run creem whoami --json to verify store access.
@@ -109,7 +164,7 @@ Then run a heartbeat check now — follow HEARTBEAT.md.
 ```
 Expected: Creates `~/.creem/heartbeat-state.json` with baseline state, replies HEARTBEAT_OK.
 
-### 5.2 Create a purchase and detect changes
+### 6.2 Create a purchase and detect changes
 Tell the agent:
 ```
 Create a checkout for any of the existing products using the creem CLI.
@@ -121,7 +176,7 @@ Run a heartbeat check now. There should be new activity since the last baseline.
 ```
 Expected: Detects new transaction, new customer, new subscription.
 
-### 5.3 Test churn analysis
+### 6.3 Test churn analysis
 Tell the agent:
 ```
 Cancel the subscription for <customer_email> using the CLI.
@@ -132,12 +187,12 @@ Expected: Detects cancellation, triggers churn analysis with:
 - LTV calculation from transaction history
 - Retention recommendation with confidence level
 
-### 5.4 Test natural language queries
+### 6.4 Test natural language queries
 ```
 How many active subscribers do I have? And what was my total revenue this month?
 ```
 
-### 5.5 Test revenue digest
+### 6.5 Test revenue digest
 Tell the agent:
 ```
 Generate a daily revenue digest for today. Include: total revenue,
@@ -145,7 +200,17 @@ new transactions, new customers, subscription changes, and active
 subscriber count.
 ```
 
-### 5.6 Verify state persistence
+### 6.6 Test webhook (requires Phase 4)
+Trigger a test event via curl:
+```bash
+curl -X POST https://creem-agent.yourdomain.com/hooks/wake \
+  -H "Authorization: Bearer your-secret-token-here" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Creem webhook: subscription.canceled for customer test@example.com sub_abc123. Verify with CLI and run churn analysis.", "mode": "now"}'
+```
+Expected: Agent wakes, verifies via CLI, runs churn analysis if applicable.
+
+### 6.7 Verify state persistence
 ```bash
 openclaw gateway restart
 ```
@@ -158,7 +223,7 @@ Expected: Loads previous state, compares, reports HEARTBEAT_OK if no changes.
 
 ---
 
-## Phase 6: Record Video (10-15 min)
+## Phase 7: Record Video (10-15 min)
 
 ### Structure
 1. **Setup (2-3 min):** Show install, skill setup, CLI auth — demonstrate ease of setup
@@ -179,7 +244,7 @@ Expected: Loads previous state, compares, reports HEARTBEAT_OK if no changes.
 
 ---
 
-## Phase 7: Write Guide (1,500-2,500 words)
+## Phase 8: Write Guide (1,500-2,500 words)
 
 File: `docs/guide.md`
 
@@ -194,7 +259,7 @@ File: `docs/guide.md`
 
 ---
 
-## Phase 8: Submit
+## Phase 9: Submit
 
 - [ ] GitHub repo clean with README
 - [ ] Publish to ClawHub (`clawhub publish`)
