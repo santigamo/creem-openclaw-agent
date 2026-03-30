@@ -72,7 +72,15 @@ Write new snapshot to `~/.creem/heartbeat-state.json` with:
 - Updated counts for transactions, customers, subscriptions
 - Updated `knownSubscriptions` map with current subscription ID → status
 
-### Step 6: Report
+### Step 6: Handle Cancellations
+
+If any subscription transitioned to `canceled` or `scheduled_cancel`, **trigger the churn analysis process from the creem-store-agent skill before reporting:**
+1. Fetch customer context via CLI
+2. Calculate lifetime value from transaction history
+3. Recommend action (CREATE_DISCOUNT, SUGGEST_PAUSE, or NO_ACTION) with confidence level
+4. Include the recommendation in the report
+
+### Step 7: Report
 
 **If changes detected:** Send a summary to Telegram with all changes grouped:
 ```
