@@ -101,42 +101,60 @@ export TELEGRAM_CHAT_ID=your_chat_id_here
 
 ## Phase 5: Test the Agent
 
-### 5.1 Verify store access
+### 5.1 Verify store access and first heartbeat
 Tell the agent:
 ```
-Run creem whoami --json and confirm you can access the store.
+Run creem whoami --json to verify store access.
+Then run a heartbeat check now — follow HEARTBEAT.md.
 ```
+Expected: Creates `~/.creem/heartbeat-state.json` with baseline state, replies HEARTBEAT_OK.
 
-### 5.2 Test heartbeat manually
+### 5.2 Create a purchase and detect changes
 Tell the agent:
 ```
-Run a heartbeat check now. Follow HEARTBEAT.md.
+Create a checkout for any of the existing products using the creem CLI.
+Show me the checkout URL so I can complete the purchase.
+```
+Complete the sandbox purchase, then tell the agent:
+```
+Run a heartbeat check now. There should be new activity since the last baseline.
+```
+Expected: Detects new transaction, new customer, new subscription.
+
+### 5.3 Test churn analysis
+Tell the agent:
+```
+Cancel the subscription for <customer_email> using the CLI.
+Then run a heartbeat check.
+```
+Expected: Detects cancellation, triggers churn analysis with:
+- Customer context (product, country, tenure)
+- LTV calculation from transaction history
+- Retention recommendation with confidence level
+
+### 5.4 Test natural language queries
+```
+How many active subscribers do I have? And what was my total revenue this month?
 ```
 
-Expected: First run creates `~/.creem/heartbeat-state.json`, reports initial state or HEARTBEAT_OK.
-
-### 5.3 Test natural language queries
+### 5.5 Test revenue digest
+Tell the agent:
 ```
-How many active subscribers do I have?
-Show me recent transactions.
-What products do we have?
+Generate a daily revenue digest for today. Include: total revenue,
+new transactions, new customers, subscription changes, and active
+subscriber count.
 ```
-
-### 5.4 Test webhook simulation
-TODO: Set up webhook endpoint (ngrok + webhook handler) and simulate events.
-
-### 5.5 Test churn analysis
-TODO: Simulate a subscription cancellation and verify the agent:
-1. Fetches customer context
-2. Calculates LTV
-3. Recommends action
-4. Sends Telegram notification
 
 ### 5.6 Verify state persistence
 ```bash
-cat ~/.creem/heartbeat-state.json
+openclaw gateway restart
 ```
-Restart OpenClaw, run heartbeat again — should pick up from saved state.
+Then tell the agent:
+```
+Run a heartbeat check now. Confirm you loaded the previous state
+from ~/.creem/heartbeat-state.json before comparing.
+```
+Expected: Loads previous state, compares, reports HEARTBEAT_OK if no changes.
 
 ---
 
