@@ -52,11 +52,20 @@ Set the following environment variables:
 export CREEM_API_KEY=creem_test_...
 export TELEGRAM_BOT_TOKEN=your_bot_token
 export TELEGRAM_CHAT_ID=your_chat_id
+export CREEM_WEBHOOK_SECRET=your_creem_webhook_secret
+export OPENCLAW_HOOKS_TOKEN=your_openclaw_hooks_token
 ```
 
 ### 4. Run
 
 Start OpenClaw — the agent will begin monitoring your store automatically via the heartbeat pattern.
+
+To run the local Creem webhook bridge:
+
+```bash
+pnpm install
+pnpm webhook
+```
 
 ## Project Structure
 
