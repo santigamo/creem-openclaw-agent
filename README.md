@@ -46,15 +46,15 @@ cp HEARTBEAT.md ~/.openclaw/workspace/
 
 ### 3. Configure
 
-Set the following environment variables:
+The Creem CLI handles its own authentication (`creem login`). For the webhook bridge, copy `.env.example` to `.env` and fill in:
 
 ```bash
-export CREEM_API_KEY=creem_test_...
-export TELEGRAM_BOT_TOKEN=your_bot_token
-export TELEGRAM_CHAT_ID=your_chat_id
-export CREEM_WEBHOOK_SECRET=your_creem_webhook_secret
-export OPENCLAW_HOOKS_TOKEN=your_openclaw_hooks_token
+CREEM_WEBHOOK_SECRET=your_signing_secret   # From Creem dashboard → Webhooks
+OPENCLAW_HOOKS_TOKEN=your_gateway_token    # From OpenClaw gateway config
+WEBHOOK_PORT=3000
 ```
+
+Tell the OpenClaw agent your Telegram bot token and chat ID — it stores them in its own memory.
 
 ### 4. Run
 
@@ -72,14 +72,14 @@ pnpm webhook
 ```
 ├── AGENTS.md                 # Agent behavior instructions (copy to workspace)
 ├── HEARTBEAT.md              # Periodic store health check (copy to workspace)
+├── bridge/
+│   ├── webhook-receiver.ts   # Webhook bridge (Bun + Hono, HMAC verify, event log)
+│   └── README.md             # Bridge setup and architecture
 ├── skills/
 │   └── creem-store-agent/
 │       └── SKILL.md          # Publishable skill for ClawHub
-├── docs/
-│   ├── guide.md              # Written guide
-│   └── architecture.png      # Architecture diagram
-└── examples/
-    └── webhook-events/       # Sample webhook payloads for testing
+└── docs/
+    └── guide.md              # Written guide with architecture diagram
 ```
 
 ### Dependencies (installed separately)

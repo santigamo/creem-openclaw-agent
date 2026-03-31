@@ -5,7 +5,7 @@ import { Hono } from "hono";
 
 const eventLogPath = new URL("./events.jsonl", import.meta.url);
 const { CREEM_WEBHOOK_SECRET: webhookSecret, OPENCLAW_HOOKS_TOKEN: openClawToken } = process.env;
-const port = Number.parseInt(process.env.WEBHOOK_PORT ?? "3456", 10) || 3456;
+const port = Number.parseInt(process.env.WEBHOOK_PORT ?? "3000", 10) || 3000;
 const seenEventIds = new Set<string>();
 
 if (!webhookSecret) throw new Error("CREEM_WEBHOOK_SECRET is required");
@@ -40,7 +40,7 @@ const wakeOpenClaw = async (type: string, customerId: string | null) => {
 
 const app = new Hono();
 
-app.post("/webhooks/creem", async (c) => {
+app.post("/api/webhooks/creem", async (c) => {
   const signature = c.req.header("creem-signature");
   const rawBody = await c.req.text();
   if (!signature || !verifySignature(rawBody, signature)) return c.json({ error: "invalid signature" }, 401);
@@ -52,14 +52,21 @@ app.post("/webhooks/creem", async (c) => {
     return c.json({ error: "invalid json" }, 400);
   }
 
-  const eventId = String(payload.event_id ?? "");
-  const type = String(payload.type ?? "");
-  if (!eventId || !type) return c.json({ error: "missing event_id or type" }, 400);
-  if (seenEventIds.has(eventId)) return c.json({ ok: true, duplicate: true });
-
-  const customerId = (payload.customer_id as string | undefined) ?? (payload.customer as { id?: string } | undefined)?.id ?? null;
-  const subscriptionId =
-    (payload.subscription_id as string | undefined) ?? (payload.subscription as { id?: string } | undefined)?.id ?? null;
+  const eventId = String(payload.id ?? payload.event_id ?? "");
+  const type = String(payload.eventType ?? payload.type ?? "");
+  if (!eventId || !type) {
+    console.log(`⚠️  [${new Date().toISOString()}] Rejected: missing id or eventType`);
+    return c.json({ error: "missing id or eventType", keys: Object.keys(payload) }, 400);
+  }
+  if (seenEventIds.has(eventId)) {
+    console.log(`🔁 [${new Date().toISOString()}] Duplicate skipped: ${type} (${eventId})`);
+    return c.json({ ok: true, duplicate: true });
+  }
+  const obj = (payload.object as Record<string, unknown>) ?? {};
+  const customer = (obj.customer as Record<string, unknown>) ?? {};
+  const customerId = String(customer.id ?? obj.customer ?? "");
+  const subscriptionId = String((obj as Record<string, unknown>).id ?? "");
+  console.log(`📥 [${new Date().toISOString()}] Received: ${type} | event: ${eventId} | customer: ${customerId || "unknown"}`);
   const event = {
     event_id: eventId,
     type,
@@ -79,10 +86,13 @@ app.post("/webhooks/creem", async (c) => {
     return c.json({ error: "failed to log event" }, 500);
   }
 
-  void wakeOpenClaw(type, customerId).catch((error) => {
-    console.error("Failed to wake OpenClaw", error);
+  void wakeOpenClaw(type, customerId).then(() => {
+    console.log(`🚀 [${new Date().toISOString()}] Woke OpenClaw → ${type} for ${customerId || "unknown"}`);
+  }).catch((error) => {
+    console.error(`❌ [${new Date().toISOString()}] Failed to wake OpenClaw:`, error);
   });
 
+  console.log(`💾 [${new Date().toISOString()}] Event logged to events.jsonl`);
   return c.json({ ok: true });
 });
 

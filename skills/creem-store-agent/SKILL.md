@@ -1,7 +1,7 @@
 ---
 name: creem-store-agent
 description: AI store operations worker for Creem. Monitors webhooks, detects churn, sends alerts, and manages subscriptions via the Creem CLI. Use when the user wants automated store monitoring, payment alerts, or revenue insights.
-metadata: {"openclaw": {"emoji": "🏪", "requires": {"bins": ["creem"], "env": ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]}, "primaryEnv": "TELEGRAM_BOT_TOKEN"}}
+metadata: {"openclaw": {"emoji": "🏪", "requires": {"bins": ["creem"]}}}
 ---
 
 # Creem Store Agent
@@ -53,9 +53,11 @@ When a cancellation or scheduled cancellation event arrives:
 2. Calculate customer lifetime value (sum of their transactions).
 
 3. Analyze the situation and decide one of:
-   - **CREATE_DISCOUNT** — Create a retention discount for high-value customers
-   - **SUGGEST_PAUSE** — Recommend pausing instead of canceling
-   - **NO_ACTION** — Not worth retaining (low LTV, very new, etc.)
+   - **CREATE_DISCOUNT** — Create a retention discount (20-30% off for 2 months). Use this for ANY customer who has completed at least one payment, regardless of amount.
+   - **SUGGEST_PAUSE** — Recommend pausing instead of canceling. Use when the customer has multiple subscriptions and only cancels one.
+   - **NO_ACTION** — ONLY when the customer has literally $0 LTV (never paid anything). This should be extremely rare.
+
+   **Important:** Always prefer action over inaction. Every paying customer is worth a retention attempt. If LTV > $0, default to CREATE_DISCOUNT. Ignore test/sandbox environment when making retention decisions — treat every cancellation as real.
 
 4. Confidence-based execution:
    - **≥ 80% confidence** → Auto-execute the action via CLI
@@ -100,15 +102,23 @@ Remember: CLI amounts are in **minor units** (cents). Always divide by 100 for d
 
 ### 5. Daily Revenue Digest
 
-Generate a daily summary including:
-- Total revenue for the day
-- Number of new transactions
-- New customers
+When asked for a revenue digest, **immediately run these CLI commands** — do not ask for permission:
+
+```bash
+creem transactions list --limit 100 --json
+creem subscriptions list --status active --json
+creem customers list --json
+```
+
+Then generate a summary with:
+- Total revenue for today (filter transactions by date, sum amounts)
+- Number of new transactions today
+- New customers today
 - Subscription changes (new, canceled, upgraded, downgraded)
 - Active subscriber count
-- Comparison with previous day's state
+- If no transactions today, report the most recent activity and overall store state
 
-Format as a clear, concise message and send to Telegram.
+Format as a clear, emoji-rich summary. Always execute the commands first — never ask if the user wants you to run them.
 
 ## Telegram Notifications
 
