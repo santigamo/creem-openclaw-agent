@@ -7,18 +7,22 @@ Step-by-step guide for setting up and demoing the Creem Store Agent with OpenCla
 ## Phase 1: Fresh OpenClaw Install
 
 ### 1.1 Install OpenClaw
+
 ```bash
 curl -fsSL https://openclaw.ai/install.sh | bash
 ```
 
 ### 1.2 Onboarding
+
 During onboarding, set identity:
+
 - **Name:** Creem
 - **Creature:** Store manager
 - **Vibe:** Warm
 - **Emoji:** 🍦
 
 When asked about you:
+
 ```
 Santi. He/him. You're a store operations agent for a Creem-powered SaaS.
 Your job is monitoring the store, alerting me on Telegram when something
@@ -26,6 +30,7 @@ needs attention, and handling churn autonomously when you're confident enough.
 ```
 
 ### 1.3 Verify
+
 ```bash
 openclaw --version
 openclaw gateway status
@@ -38,6 +43,7 @@ openclaw gateway status
 ### 2.1 Merge AGENTS.md and HEARTBEAT.md
 
 Tell the agent:
+
 ```
 Read these two files and merge their content into your current
 AGENTS.md and HEARTBEAT.md. Our content takes priority — keep any
@@ -53,11 +59,13 @@ should come from our files:
 ## Phase 3: Install Skills
 
 ### 3.1 Install Creem CLI skill (you do this interactively)
+
 ```bash
 npx skills add santigamo/creem-cli-developer-toolkit
 ```
 
 ### 3.2 Install Creem Store Agent skill (tell the agent)
+
 ```
 Copy the creem-store-agent skill into your workspace:
 cp -r /Users/santi/Code/creem-openclaw-agent/skills/creem-store-agent ~/.openclaw/workspace/skills/
@@ -65,9 +73,11 @@ Then verify it's loaded: list your available skills.
 ```
 
 ### 3.3 Verify Creem CLI is authenticated
+
 ```bash
 creem whoami --json
 ```
+
 Expected: `"environment": "test"`, `"authenticated": true`
 
 ---
@@ -75,7 +85,9 @@ Expected: `"environment": "test"`, `"authenticated": true`
 ## Phase 4: Webhook Setup (ngrok + Webhook Receiver + OpenClaw Hooks)
 
 ### 4.1 Configure environment variables
+
 Create `.env` in the repo root (`~/Code/creem-openclaw-agent/.env`):
+
 ```bash
 CREEM_WEBHOOK_SECRET=<from Creem dashboard → Developers → Webhooks → Signing secret>
 OPENCLAW_HOOKS_TOKEN=<from openclaw.json gateway.auth.token, or run: python3 -c "import json; print(json.load(open('$HOME/.openclaw/openclaw.json'))['gateway']['auth']['token'])">
@@ -83,7 +95,9 @@ WEBHOOK_PORT=3000
 ```
 
 ### 4.2 Enable hooks in OpenClaw
+
 Verify hooks are enabled in `~/.openclaw/openclaw.json`:
+
 ```json
 {
   "hooks": {
@@ -93,44 +107,58 @@ Verify hooks are enabled in `~/.openclaw/openclaw.json`:
   }
 }
 ```
+
 Then restart the gateway:
+
 ```bash
 openclaw gateway restart
 ```
 
 ### 4.3 Install webhook receiver dependencies
+
 ```bash
 cd ~/Code/creem-openclaw-agent
 pnpm install
 ```
 
 ### 4.4 Start the webhook receiver
+
 ```bash
 pnpm webhook
 ```
+
 Expected: `Creem webhook receiver listening on http://localhost:3000`
 
 ### 4.5 Start ngrok tunnel
+
 In a separate terminal:
+
 ```bash
 ngrok http --url=chigger-crisp-tightly.ngrok-free.app 3000
 ```
+
 Copy the public URL (e.g., `https://xxxx.ngrok-free.app`).
 
 ### 4.6 Update webhook URL in Creem dashboard
+
 In the Creem dashboard (test mode) → Developers → Webhooks, update the endpoint URL to:
+
 ```
 https://xxxx.ngrok-free.app/api/webhooks/creem
 ```
+
 > **Note:** The webhook is already registered, just update the ngrok URL each time you restart the tunnel.
 
 ### 4.7 Test the webhook end-to-end
+
 Create a test checkout in Creem to trigger a real webhook event, or manually test the receiver:
+
 ```bash
 curl -X POST http://localhost:3000/api/webhooks/creem \
   -H "Content-Type: application/json" \
   -d '{"event_id": "test_001", "type": "checkout.completed", "customer_id": "cust_test"}'
 ```
+
 > Note: This will fail signature verification (expected). A real Creem webhook will include the proper `creem-signature` header.
 
 Expected flow: Creem sends webhook → ngrok → receiver verifies HMAC → logs to events.jsonl → wakes OpenClaw → agent processes event.
@@ -140,6 +168,7 @@ Expected flow: Creem sends webhook → ngrok → receiver verifies HMAC → logs
 ## Phase 5: Telegram Bot Setup (do this live during demo)
 
 ### 5.1 Create bot
+
 1. Open Telegram → search @BotFather
 2. `/newbot`
 3. Name: `Creem Store Agent`
@@ -147,16 +176,20 @@ Expected flow: Creem sends webhook → ngrok → receiver verifies HMAC → logs
 5. Copy the token
 
 ### 5.2 Get your chat ID
+
 1. Send any message to the new bot
 2. Visit: `https://api.telegram.org/bot<TOKEN>/getUpdates`
 3. Find `chat.id` in the response
 
 ### 5.3 Tell the agent the Telegram credentials
+
 Tell the OpenClaw agent:
+
 ```
 My Telegram bot token is <TOKEN> and my chat ID is <CHAT_ID>.
 Remember these for sending me notifications.
 ```
+
 > **Note:** The agent uses these to send alerts. They're stored in the agent's memory, not as system env vars.
 
 ---
@@ -164,43 +197,58 @@ Remember these for sending me notifications.
 ## Phase 6: Test the Agent
 
 ### 6.1 Verify store access and first heartbeat
+
 Tell the agent:
+
 ```
 Run creem whoami --json to verify store access.
 Then run a heartbeat check now — follow HEARTBEAT.md.
 ```
+
 Expected: Creates `~/.creem/heartbeat-state.json` with baseline state, replies HEARTBEAT_OK.
 
 ### 6.2 Create a purchase and detect changes
+
 Tell the agent:
+
 ```
 Create a checkout for any of the existing products using the creem CLI.
 Show me the checkout URL so I can complete the purchase.
 ```
+
 Complete the sandbox purchase, then tell the agent:
+
 ```
 Run a heartbeat check now. There should be new activity since the last baseline.
 ```
+
 Expected: Detects new transaction, new customer, new subscription.
 
 ### 6.3 Test churn analysis
+
 Tell the agent:
+
 ```
 Cancel the subscription for <customer_email> using the CLI.
 Then run a heartbeat check.
 ```
+
 Expected: Detects cancellation, triggers churn analysis with:
+
 - Customer context (product, country, tenure)
 - LTV calculation from transaction history
 - Retention recommendation with confidence level
 
 ### 6.4 Test natural language queries
+
 ```
 How many active subscribers do I have? And what was my total revenue this month?
 ```
 
 ### 6.5 Test revenue digest
+
 Tell the agent:
+
 ```
 Generate a daily revenue digest for today. Include: total revenue,
 new transactions, new customers, subscription changes, and active
@@ -208,25 +256,32 @@ subscriber count.
 ```
 
 ### 6.6 Test webhook (requires Phase 4)
+
 Trigger a real webhook by creating a checkout + completing a test purchase in the Creem sandbox. The event will flow:
+
 1. Creem fires webhook → ngrok URL → webhook-receiver.ts
 2. Receiver verifies HMAC, logs event, wakes OpenClaw via `/hooks/wake`
 3. Agent processes the event, sends Telegram notification
 
 Check `events.jsonl` to confirm the event was logged:
+
 ```bash
 cat ~/Code/creem-openclaw-agent/bridge/events.jsonl
 ```
 
 ### 6.7 Verify state persistence
+
 ```bash
 openclaw gateway restart
 ```
+
 Then tell the agent:
+
 ```
 Run a heartbeat check now. Confirm you loaded the previous state
 from ~/.creem/heartbeat-state.json before comparing.
 ```
+
 Expected: Loads previous state, compares, reports HEARTBEAT_OK if no changes.
 
 ---
@@ -234,16 +289,17 @@ Expected: Loads previous state, compares, reports HEARTBEAT_OK if no changes.
 ## Phase 7: Record Video (10-15 min)
 
 ### Layout
+
 - **Main view:** OpenClaw WebUI (gateway dashboard) — shows agent messages, tool calls, reasoning
-- **Side:** Terminal with bridge logs + ngrok (visible when showing webhook flow)
-- **Bonus at the end:** Telegram notifications
+- **Side:** Terminal with bridge logs + ngrok
+- **Also visible:** Telegram chat, from the beginning, so alerts are visible live
 - Use OpenScreen for recording
 
 ---
 
 ### 🎬 VIDEO SCRIPT + COMMANDS
 
-Everything below is in order. Narration in quotes, commands in code blocks, stage directions in *italics*.
+Everything below is in order. Narration in quotes, commands in code blocks, stage directions in _italics_.
 
 ---
 
@@ -267,7 +323,7 @@ Wait for gateway to be ready. Start recording.
 
 #### PART 1: ARCHITECTURE (1-2 min)
 
-*Show: architecture diagram from `docs/guide.md` — open in GitHub or VS Code preview*
+_Show: architecture diagram from `docs/guide.md` — open in GitHub or VS Code preview_
 
 > "Before we start, let me walk you through the flow. There are four pieces, and I'll follow the diagram left to right."
 
@@ -279,7 +335,7 @@ Wait for gateway to be ready. Start recording.
 
 > "And step 7 — **you get notified**. What happened, and what the agent did about it. Today I'll show this in the OpenClaw WebUI, where you can see exactly what the agent is thinking. In production, this goes to Telegram — I'll show that at the end too."
 
-> "That's the full loop. Let's set it all up."
+> "That's the full loop. Let's set it up."
 
 ---
 
@@ -291,11 +347,33 @@ Wait for gateway to be ready. Start recording.
 curl -fsSL https://openclaw.ai/install.sh | bash
 ```
 
-*Show: onboarding flow*
+_Show: onboarding flow_
 
 > "During onboarding, I give it a name — Creem — and tell it what its job is: you're a store operations agent."
 
-> "Now we install two skills. The first is the Creem CLI — this is what the agent uses to talk to the Creem API. The second is the store agent skill — this teaches the agent how to monitor the store, detect problems, and respond."
+> "Everything the agent needs is in the GitHub repo. Let me clone it."
+
+```bash
+git clone https://github.com/santigamo/creem-openclaw-agent
+cd creem-openclaw-agent
+```
+
+> "Now we set up the agent's instructions. The repo has two key files — AGENTS.md defines the agent's role, and HEARTBEAT.md is the periodic health check routine. I'll ask the agent to read them and merge the content into its workspace."
+
+_In WebUI, tell agent:_
+
+```
+Read these two files and merge their content into your current AGENTS.md and HEARTBEAT.md.
+Our content takes priority — keep any useful defaults from the current files but the
+core instructions should come from ours:
+
+~/Code/creem-openclaw-agent/AGENTS.md
+~/Code/creem-openclaw-agent/HEARTBEAT.md
+```
+
+> "The agent is reading the files and updating its own workspace. Now it knows how to monitor the store, classify events by severity, and when to take autonomous action."
+
+> "Now we install two skills. The first is the Creem CLI — this is what the agent uses to talk to the Creem API. The second is the store agent skill — this teaches the agent how to handle specific events like cancellations and failed payments."
 
 ```bash
 npx skills add santigamo/creem-cli-developer-toolkit
@@ -306,6 +384,14 @@ cp -r skills/creem-store-agent ~/.openclaw/workspace/skills/
 
 ```bash
 creem whoami --json
+```
+
+> "Before we set up the webhook bridge, we need to enable hooks in OpenClaw. This is what allows external services to wake up the agent."
+
+```bash
+openclaw config set hooks.enabled true
+openclaw config set hooks.token "creem-test-123"
+openclaw gateway restart
 ```
 
 > "Now we need the webhook bridge. Remember the diagram — when something happens in the store, Creem sends a webhook event. But our agent runs locally, so Creem can't reach it. We need two things: a small bridge service to receive and verify the webhooks, and ngrok to give it a public URL."
@@ -323,20 +409,28 @@ pnpm webhook
 
 ```bash
 # In another terminal
-ngrok http 3000
+ngrok http --url=chigger-crisp-tightly.ngrok-free.app 3000
 ```
 
 > "ngrok gives us a public URL. I've already registered this URL in the Creem dashboard as the webhook endpoint. So now the flow is: Creem sends a webhook to ngrok, ngrok forwards it to the bridge, the bridge verifies the signature and wakes the agent."
 
-> "Let me open the OpenClaw WebUI — this is where we'll see everything the agent does."
+> "The bridge is now listening. Creem sends webhooks to ngrok, ngrok forwards them to the bridge, the bridge verifies and wakes the agent."
+
+> "Now let me enable Telegram delivery. I just message the bot once. OpenClaw remembers that Telegram session, and the webhook bridge can automatically send future alerts there. No manual chat ID setup needed."
+
+*Show: Telegram chat with the bot, send a simple message like “hi”*
+
+> "Great — now Telegram is part of the flow from the start."
+
+> "Let me open the OpenClaw WebUI — this is where we'll see everything the agent does under the hood."
+
+*Show: WebUI opening, agent session visible, with Telegram chat still visible on screen*
+
+> "OK, everything is connected. Let's see it in action."
 
 ```bash
 openclaw dashboard
 ```
-
-*Show: WebUI opening, agent session visible*
-
-> "OK, everything is connected. Let's see it in action."
 
 ---
 
@@ -346,14 +440,15 @@ openclaw dashboard
 
 > "First, let me ask the agent to check the store."
 
-*In WebUI, tell agent:*
+_In WebUI, tell agent:_
+
 ```
 Run a heartbeat check now — follow HEARTBEAT.md.
 ```
 
 > "Watch the WebUI — you can see the agent reading the heartbeat instructions, running CLI commands to check the store, and building a baseline snapshot. This is the first run, so everything it finds is new. From now on, every check compares against this."
 
-*Point to tool calls in WebUI*
+_Point to tool calls in WebUI_
 
 ---
 
@@ -361,16 +456,18 @@ Run a heartbeat check now — follow HEARTBEAT.md.
 
 > "Now let's see the real-time layer — the webhook flow from the diagram. I'll create a purchase to trigger it."
 
-*In WebUI, tell agent:*
+_In WebUI, tell agent:_
+
 ```
 Create a checkout for the Pro Plan. Give me the link.
 ```
 
-*Complete the sandbox purchase in browser (card: 4242 4242 4242 4242)*
+_Complete the sandbox purchase in browser (card: 4242 4242 4242 4242)_
 
 > "Watch the bridge terminal..."
 
-*Point to bridge logs showing:*
+_Point to bridge logs showing:_
+
 ```
 📥 Received: checkout.completed | event: evt_xxx | customer: cust_xxx
 💾 Event logged to events.jsonl
@@ -379,7 +476,7 @@ Create a checkout for the Pro Plan. Give me the link.
 
 > "The webhook arrived, the bridge verified it and woke the agent. Now look at the WebUI — the agent is already processing the event."
 
-*Point to WebUI showing agent response: new transaction, new customer, new subscription*
+_Point to WebUI showing agent response: new transaction, new customer, new subscription_
 
 > "The agent reacted in seconds. That's the webhook bridge doing its job — steps 1 through 3 from the diagram, happening automatically."
 
@@ -389,20 +486,21 @@ Create a checkout for the Pro Plan. Give me the link.
 
 > "Now the most interesting part — steps 4, 5, and 6. What happens when someone cancels?"
 
-*In WebUI, tell agent:*
+_In WebUI, tell agent:_
+
 ```
 Cancel the subscription for [customer email].
 ```
 
 > "Watch the WebUI closely. The agent is going to cancel the subscription via CLI, detect the change, fetch the customer's history, calculate their lifetime value, and make a retention decision."
 
-*Wait for agent response, point to tool calls in WebUI*
+_Wait for agent response, point to tool calls in WebUI_
 
 > "Look — it ran a full churn analysis. It checked the customer's LTV, how long they've been subscribed, and decided on a recommendation with a confidence score."
 
 > "The key here is the confidence threshold. If the agent is above 80% confident, it can execute the action on its own — create a discount, pause the subscription. If it's below 80%, it asks for your approval first. It's autonomous, but not reckless."
 
-*Point to the retention recommendation in the response*
+_Point to the retention recommendation in the response_
 
 ---
 
@@ -410,7 +508,8 @@ Cancel the subscription for [customer email].
 
 > "I can also just ask the agent questions in plain English."
 
-*In WebUI, tell agent:*
+_In WebUI, tell agent:_
+
 ```
 How many active subscribers do I have? What was my total revenue this month?
 ```
@@ -421,33 +520,15 @@ How many active subscribers do I have? What was my total revenue this month?
 
 **3e. Revenue digest (~1 min)**
 
-> "Last thing before Telegram — the agent can generate a daily revenue summary."
+> "The agent can also generate a daily revenue summary."
 
-*In WebUI, tell agent:*
+_In WebUI, tell agent:_
+
 ```
 Generate a daily revenue digest.
 ```
 
-> "It pulls all the store data — transactions, subscriptions, customers — and gives me a complete summary. This can run automatically every morning."
-
----
-
-**3f. Telegram (bonus, ~1 min, if time allows)**
-
-> "All of this also works with Telegram. Let me quickly set that up."
-
-*Open Telegram, search @BotFather, create bot, copy token. Get chat ID via `https://api.telegram.org/bot<TOKEN>/getUpdates`*
-
-*In WebUI, tell agent:*
-```
-My Telegram bot token is <TOKEN> and my chat ID is <CHAT_ID>. Remember these for sending me notifications.
-```
-
-> "Now let me trigger one more event and show you the notification."
-
-*Create another checkout + complete purchase. Point to Telegram notification arriving.*
-
-> "In production, you'd get these alerts on your phone without opening any dashboard."
+> "It pulls all the store data — transactions, subscriptions, customers — and gives me a complete summary. This can run automatically every morning. And if Telegram is configured, I get the same kind of updates there too."
 
 ---
 

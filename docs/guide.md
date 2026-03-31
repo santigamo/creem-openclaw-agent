@@ -9,53 +9,18 @@ This guide shows you how to build an AI agent that monitors your Creem store 24/
 The agent uses three layers, each solving a different problem:
 
 ```mermaid
-graph LR
-    subgraph CREEM ["🏪 Creem Store"]
-        EVENT["<b>1. Something happens</b><br/>New sale, cancellation,<br/>failed payment"]
-    end
 
-    subgraph WEBHOOKBRIDGE ["🌉 Webhook Bridge"]
-        VERIFY["<b>2. Verify & log</b><br/>Check signature,<br/>save to audit log"]
-        WAKE["<b>3. Wake the agent</b>"]
-        VERIFY --> WAKE
-    end
-
-    subgraph OPENCLAW ["🧠 OpenClaw Agent"]
-        DETECT["<b>4. Detect changes</b><br/>Query the store,<br/>compare with last state"]
-        DECIDE["<b>5. Analyze & decide</b><br/>Customer LTV, tenure,<br/>confidence score"]
-        ACT["<b>6. Take action</b><br/>Create discount,<br/>pause subscription,<br/>or let it go"]
-        DETECT --> DECIDE --> ACT
-    end
-
-    subgraph YOU ["📱 You"]
-        NOTIFY["<b>7. Get notified</b><br/>What happened +<br/>what the agent did"]
-    end
-
-    EVENT --> VERIFY
-    WAKE --> DETECT
-    ACT --> NOTIFY
-
-    style CREEM fill:none,stroke:#43A047,stroke-width:2px,stroke-dasharray:5 5,color:#1B5E20
-    style WEBHOOKBRIDGE fill:none,stroke:#FB8C00,stroke-width:2px,stroke-dasharray:5 5,color:#E65100
-    style OPENCLAW fill:none,stroke:#1E88E5,stroke-width:2px,stroke-dasharray:5 5,color:#0D47A1
-    style YOU fill:none,stroke:#8E24AA,stroke-width:2px,stroke-dasharray:5 5,color:#6A1B9A
-
-    style EVENT fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:#1B5E20
-    style VERIFY fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:#E65100
-    style WAKE fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:#E65100
-    style DETECT fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1
-    style DECIDE fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1
-    style ACT fill:#E3F2FD,stroke:#1E88E5,stroke-width:2px,color:#0D47A1
-    style NOTIFY fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,color:#6A1B9A
 ```
 
 ### Layer 1: Webhooks — Real-time event processing
 
 When something happens in your Creem store, the platform fires a webhook event. Our lightweight bridge service (`bridge/webhook-receiver.ts`) receives it, verifies the HMAC-SHA256 signature to confirm it's authentic, deduplicates it by event ID, and logs it to `events.jsonl` as an audit trail.
 
-Then it calls OpenClaw's `/hooks/wake` endpoint, which wakes up the agent. The agent reads the event, classifies it by severity, and takes the appropriate action. A new sale? Good news notification on Telegram. A failed payment? Alert with customer context. A cancellation? Full churn analysis.
+Creem often emits multiple events for one business action — for example a single purchase can generate `subscription.update`, `subscription.active`, `checkout.completed`, and `subscription.paid`. To avoid waking the agent four times for one checkout, the bridge batches events for a few seconds and sends a single summary to OpenClaw.
 
-The bridge is intentionally thin — about 90 lines of TypeScript running on Bun with zero external dependencies beyond Hono for routing. It doesn't make decisions. It just makes sure the event is real, logs it, and hands it off to the brain. If you need to audit what happened, `events.jsonl` has every verified event with timestamps, customer IDs, and the full raw payload.
+Instead of using `/hooks/wake`, the bridge calls OpenClaw's `/hooks/agent` endpoint. That matters because `/hooks/agent` can both run an isolated agent turn **and** deliver the result back to the user over Telegram. The bridge also auto-detects the latest Telegram recipient from OpenClaw's session store, so after you message the bot once, future webhook alerts can be routed there automatically.
+
+The bridge is intentionally thin — a small Bun + Hono service with no business logic of its own. It doesn't decide what to do. It just makes sure the event is real, logs it, batches noisy event bursts, and hands the situation off to the brain. If you need to audit what happened, `events.jsonl` has every verified event with timestamps, customer IDs, and the full raw payload.
 
 ### Layer 2: CLI — Active control
 
@@ -144,26 +109,49 @@ The agent translates your question into the right CLI commands, runs them, and g
 - [Bun](https://bun.sh/) runtime (for the webhook bridge)
 - [ngrok](https://ngrok.com/) (to expose the webhook bridge to the internet)
 
-### Step 1: Install the skills
+### Step 1: Clone the repo
+
+```bash
+git clone https://github.com/santigamo/creem-openclaw-agent
+cd creem-openclaw-agent
+```
+
+Everything lives in the repo: AGENTS.md, HEARTBEAT.md, the skill, and the webhook bridge.
+
+### Step 2: Install the skills
 
 ```bash
 # Install the Creem CLI skill
 npx skills add santigamo/creem-cli-developer-toolkit
 
-# Install the Creem Store Agent skill
-clawhub install creem-store-agent
+# Copy the store agent skill into the OpenClaw workspace
+cp -r skills/creem-store-agent ~/.openclaw/workspace/skills/
 ```
 
-### Step 2: Set up the workspace
+### Step 3: Merge agent instructions into the workspace
 
-Copy the agent instructions and heartbeat config to your OpenClaw workspace:
+Instead of blindly overwriting the workspace files, ask the agent to read the repo versions and merge them into its current workspace:
+
+```text
+Read these two files and merge their content into your current AGENTS.md and HEARTBEAT.md.
+Our content takes priority — keep any useful defaults from the current files but the
+core instructions should come from ours:
+
+~/Code/creem-openclaw-agent/AGENTS.md
+~/Code/creem-openclaw-agent/HEARTBEAT.md
+```
+
+This preserves any useful OpenClaw defaults while applying the Creem-specific behavior.
+
+### Step 4: Enable hooks in OpenClaw
 
 ```bash
-cp AGENTS.md ~/.openclaw/workspace/
-cp HEARTBEAT.md ~/.openclaw/workspace/
+openclaw config set hooks.enabled true
+openclaw config set hooks.token "your-hooks-secret"
+openclaw gateway restart
 ```
 
-### Step 3: Configure the webhook bridge
+### Step 5: Configure the webhook bridge
 
 ```bash
 cp .env.example .env
@@ -173,11 +161,11 @@ Fill in your `.env`:
 
 ```bash
 CREEM_WEBHOOK_SECRET=your_signing_secret   # From Creem dashboard → Webhooks
-OPENCLAW_HOOKS_TOKEN=your_gateway_token    # From OpenClaw gateway config
+OPENCLAW_HOOKS_TOKEN=your_hooks_token      # Same value used in OpenClaw hooks config
 WEBHOOK_PORT=3000
 ```
 
-### Step 4: Start the bridge and tunnel
+### Step 6: Start the bridge and tunnel
 
 ```bash
 # Terminal 1: webhook bridge
@@ -188,16 +176,24 @@ pnpm webhook
 ngrok http 3000
 ```
 
-Copy the ngrok public URL and register it in the Creem dashboard as your webhook endpoint:
+Register the ngrok public URL in the Creem dashboard as your webhook endpoint:
 ```
 https://your-ngrok-url.ngrok-free.app/api/webhooks/creem
 ```
 
-### Step 5: Tell the agent about Telegram
+### Step 7: Enable Telegram delivery
 
-Send your Telegram bot token and chat ID to the agent — it stores them in its memory and uses them for all notifications.
+Message your Telegram bot **once**. That's enough.
 
-That's it. The agent starts monitoring on the next heartbeat cycle (every 30 minutes), and processes webhook events in real-time.
+OpenClaw creates a Telegram session for that conversation, and the webhook bridge can auto-detect that session and route future alerts there. No manual chat ID lookup is required.
+
+### Step 8: Open the WebUI and run
+
+```bash
+openclaw dashboard
+```
+
+That's it. The agent starts monitoring on the next heartbeat cycle (every 30 minutes), and processes webhook events in real time.
 
 ## How to Extend
 

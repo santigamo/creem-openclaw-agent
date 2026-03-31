@@ -82,16 +82,18 @@ If any subscription transitioned to `canceled` or `scheduled_cancel`, **trigger 
 
 ### Step 7: Report
 
-**If changes detected:** Send a summary to Telegram with all changes grouped:
+**If changes detected:** Send the summary as your reply. The system will deliver it to the user via their active channel (Telegram, WebUI, etc.). Format with emoji for scanability:
 ```
-Creem store update:
-• 2 new transactions ($39.98 total)
-• 1 new customer (alice@example.com)
-• 1 subscription moved to past_due
+🍦 Creem store update:
+• 💰 2 new transactions ($39.98 total)
+• 👋 1 new customer (alice@example.com)
+• ⚠️ 1 subscription moved to past_due
 • Active subscriptions: 12 (+1)
 ```
 
 **If no changes:** Reply HEARTBEAT_OK — do not send any notification.
+
+**Important:** Always reply with the full summary when changes are detected. Never stay silent when there are changes — the user depends on these notifications.
 
 ## Notification Rules
 

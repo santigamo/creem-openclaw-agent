@@ -8,12 +8,13 @@ An AI-powered OpenClaw skill that acts as a full-time store operations worker fo
 
 ## Features
 
-- Real-time alerts for all 13 Creem webhook events via Telegram
-- Heartbeat monitoring with state tracking and change detection
+- Real-time webhook handling with HMAC verification, deduplication, and event batching
+- Native OpenClaw heartbeat with state tracking and change detection
 - Failed payment alerts with customer context
-- Churn detection with LLM analysis and autonomous retention actions
+- Churn detection with LTV analysis and confidence-based autonomous retention actions
 - Daily revenue digests
 - Natural language queries: "How much revenue this week?", "Who cancelled today?"
+- Telegram delivery with automatic session discovery after you message the bot once
 - Error handling and graceful recovery
 
 ## Quick Start
@@ -25,59 +26,94 @@ An AI-powered OpenClaw skill that acts as a full-time store operations worker fo
 - Creem API key (test mode recommended to start)
 - Telegram bot token (via [@BotFather](https://t.me/botfather))
 
-### 1. Install the skills
+### 1. Clone the repo
 
 ```bash
-# Install the Creem store agent skill
-clawhub install creem-store-agent
+git clone https://github.com/santigamo/creem-openclaw-agent
+cd creem-openclaw-agent
+```
 
+### 2. Install the skills
+
+```bash
 # Install the Creem CLI skill
 npx skills add santigamo/creem-cli-developer-toolkit
+
+# Copy the store agent skill into the OpenClaw workspace
+cp -r skills/creem-store-agent ~/.openclaw/workspace/skills/
 ```
 
-### 2. Set up the workspace
+### 3. Merge AGENTS.md and HEARTBEAT.md into the workspace
 
-Copy the workspace files to your OpenClaw workspace:
+Ask the agent to read the repo files and merge them into its current workspace:
+
+```text
+Read these two files and merge their content into your current AGENTS.md and HEARTBEAT.md.
+Our content takes priority — keep any useful defaults from the current files but the
+core instructions should come from ours:
+
+~/Code/creem-openclaw-agent/AGENTS.md
+~/Code/creem-openclaw-agent/HEARTBEAT.md
+```
+
+### 4. Enable hooks in OpenClaw
 
 ```bash
-cp AGENTS.md ~/.openclaw/workspace/
-cp HEARTBEAT.md ~/.openclaw/workspace/
+openclaw config set hooks.enabled true
+openclaw config set hooks.token "your-hooks-secret"
+openclaw gateway restart
 ```
 
-### 3. Configure
+### 5. Configure the bridge
 
 The Creem CLI handles its own authentication (`creem login`). For the webhook bridge, copy `.env.example` to `.env` and fill in:
 
 ```bash
-CREEM_WEBHOOK_SECRET=your_signing_secret   # From Creem dashboard → Webhooks
-OPENCLAW_HOOKS_TOKEN=your_gateway_token    # From OpenClaw gateway config
+CREEM_WEBHOOK_SECRET=your_s...cret   # From Creem dashboard → Webhooks
+OPENCLAW_HOOKS_TOKEN=your_h...cret   # Same value used in OpenClaw hooks config
 WEBHOOK_PORT=3000
 ```
 
-Tell the OpenClaw agent your Telegram bot token and chat ID — it stores them in its own memory.
-
-### 4. Run
-
-Start OpenClaw — the agent will begin monitoring your store automatically via the heartbeat pattern.
-
-To run the local Creem webhook bridge:
+### 6. Run the bridge and tunnel
 
 ```bash
+# Terminal 1
 pnpm install
 pnpm webhook
+
+# Terminal 2
+ngrok http 3000
 ```
+
+Register your ngrok URL in the Creem dashboard as:
+
+```text
+https://your-ngrok-url.ngrok-free.app/api/webhooks/creem
+```
+
+### 7. Enable Telegram delivery
+
+Message the Telegram bot once. OpenClaw will create a Telegram session for that conversation, and the webhook bridge will auto-discover it for future deliveries. No manual chat ID setup is required.
+
+### 8. Open the WebUI
+
+```bash
+openclaw dashboard
+```
+
+The agent will begin monitoring your store automatically via the heartbeat pattern and process webhook events in real time.
 
 ## Project Structure
 
 ```
-├── AGENTS.md                 # Agent behavior instructions (copy to workspace)
-├── HEARTBEAT.md              # Periodic store health check (copy to workspace)
+├── AGENTS.md                 # Agent behavior instructions (merge into workspace)
+├── HEARTBEAT.md              # Periodic store health check (merge into workspace)
 ├── bridge/
-│   ├── webhook-receiver.ts   # Webhook bridge (Bun + Hono, HMAC verify, event log)
+│   ├── webhook-receiver.ts   # Webhook bridge (Bun + Hono, HMAC verify, batching, delivery)
 │   └── README.md             # Bridge setup and architecture
 ├── skills/
 │   └── creem-store-agent/
-│       └── SKILL.md          # Publishable skill for ClawHub
+│       └── SKILL.md          # Main store agent skill
 └── docs/
     └── guide.md              # Written guide with architecture diagram
 ```
